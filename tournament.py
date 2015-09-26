@@ -4,6 +4,7 @@
 #
 
 import psycopg2
+from bleach import clean
 
 
 def connect():
@@ -13,14 +14,48 @@ def connect():
 
 def deleteMatches():
     """Remove all the match records from the database."""
+    
+    db = connect()
+    c = db.cursor()
+
+    sql_statement = "delete from matches;"
+    
+    c.execute(sql_statement)
+    db.commit()
+    c.close()
+    db.close()
+
+# def deleteMatchesInTournament(tournament_id):
 
 
 def deletePlayers():
     """Remove all the player records from the database."""
+    
+    db = connect()
+    c = db.cursor()
 
+    sql_statement = "delete from players;"
+    
+    c.execute(sql_statement)
+    db.commit()
+    c.close()
+    db.close()
+
+# def deletePlayersInTournament(tournament_id):
 
 def countPlayers():
     """Returns the number of players currently registered."""
+    
+    db = connect()
+    c = db.cursor()
+
+    sql_statement = "select count(*) from players;"
+    
+    c.execute(sql_statement)
+    nPlayers = int(c.fetchone()[0])
+    return nPlayers
+
+# def countPlayersInTournament(tournament_id):
 
 
 def registerPlayer(name):
@@ -33,8 +68,20 @@ def registerPlayer(name):
       name: the player's full name (need not be unique).
     """
 
+    db = connect()
+    c = db.cursor()
 
-def playerStandings():
+    sql_statement = "insert into players (p_name) values (%s);"
+    
+    c.execute(sql_statement,(clean(name),))
+    db.commit()
+    c.close()
+    db.close()
+
+# def registerPlayerInTournament(player_id, tournament_id):
+
+
+def playerStandings(tournament_id):
     """Returns a list of the players and their win records, sorted by wins.
 
     The first entry in the list should be the player in first place, or a player
