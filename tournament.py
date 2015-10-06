@@ -25,7 +25,22 @@ def deleteMatches():
     c.close()
     db.close()
 
-# def deleteMatchesInTournament(tournament_id):
+def deleteMatchesInTournament(tournament_id):
+    """Remove all the match records in a given tournament from the database."""
+    
+    db = connect()
+    c = db.cursor()
+
+    # check that tournament exists
+    c.execute("select count(*) from tournaments where tournament_id = (%s);",(clean(tournament_id),))
+    assert int(c.fetchone()[0])==1, "Invalid tournament ID"
+
+    sql_statement = "delete from matches where tournament_id=(%s);"
+    
+    c.execute(sql_statement, (clean(tournament_id),))
+    db.commit()
+    c.close()
+    db.close()
 
 
 def deletePlayers():
@@ -41,7 +56,22 @@ def deletePlayers():
     c.close()
     db.close()
 
-# def deletePlayersInTournament(tournament_id):
+def deletePlayersInTournament(tournament_id):
+    """Remove all the player records in a given tournament from the database."""
+    
+    db = connect()
+    c = db.cursor()
+
+    # check that tournament exists
+    c.execute("select count(*) from tournaments where tournament_id = (%s);",(clean(tournament_id),))
+    assert int(c.fetchone()[0])==1, "Invalid tournament ID"
+
+    sql_statement = "delete from players where tournament_id=(%s);"
+    
+    c.execute(sql_statement, (clean(tournament_id),))
+    db.commit()
+    c.close()
+    db.close()
 
 def countPlayers():
     """Returns the number of players currently registered."""
@@ -52,10 +82,24 @@ def countPlayers():
     sql_statement = "select count(*) from players;"
     
     c.execute(sql_statement)
-    nPlayers = int(c.fetchone()[0])
+    nPlayers = int(c.fetchone()[0]) # should only be one row and one col in c
     return nPlayers
 
-# def countPlayersInTournament(tournament_id):
+def countPlayersInTournament(tournament_id):
+    """Returns the number of players currently registered in given tournament."""
+    
+    db = connect()
+    c = db.cursor()
+
+    # check that tournament exists
+    c.execute("select count(*) from tournaments where tournament_id = (%s);",(clean(tournament_id),))
+    assert int(c.fetchone()[0])==1, "Invalid tournament ID"
+
+    sql_statement = "select count(*) from tournament players where tournament_id=(%s);"
+    
+    c.execute(sql_statement,(clean(tournament_id),))
+    nPlayers = int(c.fetchone()[0]) # should only be one row and one col in c
+    return nPlayers
 
 
 def registerPlayer(name):
@@ -65,7 +109,7 @@ def registerPlayer(name):
     should be handled by your SQL database schema, not in your Python code.)
   
     Args:
-      name: the player's full name (need not be unique).
+        name: the player's full name (need not be unique).
     """
 
     db = connect()
@@ -78,7 +122,24 @@ def registerPlayer(name):
     c.close()
     db.close()
 
-# def registerPlayerInTournament(player_id, tournament_id):
+def registerPlayerInTournament(player_id, tournament_id):
+    """Adds a pre-registered player to a pre-existing tournament."""
+    db = connect()
+    c = db.cursor()
+
+    # check that player and tournament exist, redundant with final sql statement
+    c.execute("select count(*) from players where player_id = (%s);",(clean(player_id),))
+    assert int(c.fetchone()[0])==1, "Invalid player ID"
+
+    c.execute("select count(*) from tournaments where tournament_id = (%s);",(clean(tournament_id),))
+    assert int(c.fetchone()[0])==1, "Invalid tournament ID"
+
+    sql_statement = "insert into tournament_players (player_id, tournament_id) values (%s, %s);"
+
+    c.execute(sql_statement,(clean(player_id),clean(tournament_id),))
+    db.commit()
+    c.close()
+    db.close()
 
 
 def playerStandings(tournament_id):
@@ -96,7 +157,7 @@ def playerStandings(tournament_id):
     """
 
 
-def reportMatch(winner, loser):
+def reportMatch(winner, loser, tournament_id):
     """Records the outcome of a single match between two players.
 
     Args:
