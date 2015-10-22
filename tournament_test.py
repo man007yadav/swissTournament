@@ -4,6 +4,7 @@
 
 from tournament import *
 
+#TODO: Fix all simple player management functions and tests to account for tournaments.
 def testDeleteMatches():
     deleteMatches()
     print "1. Old matches can be deleted."
@@ -55,7 +56,7 @@ def testRegisterCountDelete():
         raise ValueError("After deleting, countPlayers should return zero.")
     print "5. Players can be registered and deleted."
 
-
+# TODO: fix to account for tournaments.
 def testStandingsBeforeMatches():
     deleteMatches()
     deletePlayers()
@@ -78,7 +79,7 @@ def testStandingsBeforeMatches():
                          "even if they have no matches played.")
     print "6. Newly registered players appear in the standings with no matches."
 
-
+# TODO: fix to account for tournaments.
 def testReportMatches():
     deleteMatches()
     deletePlayers()
@@ -100,7 +101,7 @@ def testReportMatches():
             raise ValueError("Each match loser should have zero wins recorded.")
     print "7. After a match, players have updated standings."
 
-
+# TODO: fix to account for tournaments.
 def testPairings():
     deleteMatches()
     deletePlayers()

@@ -18,7 +18,7 @@ create table matches(
     match_id        serial primary key,
     tournament_id   integer references tournaments(tournament_id),
     -- winnerID is serial ID of player if there was a winner, 
-    -- and 0 if there was a tie; see if there's a constraint to enforce this
+    -- and 0 if there was a tie; see if there's a constraint to enforce this - can we use null?
     winner_id       integer
 );
 
