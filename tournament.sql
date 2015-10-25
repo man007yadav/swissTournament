@@ -13,15 +13,6 @@
 drop table if exists tournaments;
 create table tournaments(tournament_id serial primary key);
 
-drop table if exists matches;
-create table matches(
-    match_id        serial primary key,
-    tournament_id   integer references tournaments(tournament_id),
-    -- winnerID is serial ID of player if there was a winner, 
-    -- and 0 if there was a tie; see if there's a constraint to enforce this - can we use null?
-    winner_id       integer
-);
-
 drop table if exists players;
 create table players(
     player_id   serial primary key,
@@ -42,11 +33,25 @@ create table tournament_players(
     primary key (player_id, tournament_id)
 );
 
+drop table if exists matches;
+create table matches(
+    match_id        serial primary key,
+    tournament_id   integer references tournaments(tournament_id),
+    -- winnerID is serial ID of player if there was a winner, 
+    -- and 0 if there was a tie; see if there's a constraint to enforce this - can we use null?
+    winner_id       integer references players(player_id)
+    -- either figure out how to reference tournament_players composite PK, or 
+    -- manage this constraint in Python code.
+);
+
 drop table if exists match_players;
 create table match_players(
     match_id    integer references matches(match_id),
     player_id   integer references players(player_id)
+    -- see composite PK/FK comment in matches(winner)
 );
+
+
 
 -- select matchID,winnerID from matches where tournament_id = thisTourn; 
     -- for each player find out which matches they participated in and what their score was (cases for playerid=winnerid,

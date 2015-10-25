@@ -101,7 +101,7 @@ def testReportMatches():
             raise ValueError("Each match loser should have zero wins recorded.")
     print "7. After a match, players have updated standings."
 
-# TODO: fix to account for tournaments.
+# TODO: fix to account for tournaments and ties.
 def testPairings():
     deleteMatches()
     deletePlayers()
