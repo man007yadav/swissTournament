@@ -28,7 +28,7 @@ create table tournament_players(
                             on update cascade on delete cascade,
     tournament_id   integer references tournaments(tournament_id)
                             on update cascade on delete cascade,
-    p_t_score       smallint default 0,
+    p_t_score       integer default 0,
     -- this score field will get updated frequently, to minimize #queries to get standings.
     primary key (player_id, tournament_id)
 );
