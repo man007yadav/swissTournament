@@ -51,6 +51,15 @@ create table match_players(
     -- see composite PK/FK comment in matches(winner)
 );
 
+drop view if exists full_player_info;
+create or replace view full_player_info as
+    select tp.player_id, tp.tournament_id, tp.p_t_score, mp.nmatches, p.p_name
+    from tournament_players as tp
+        left outer join
+        (select player_id, cast(count(*) as int) as nmatches 
+            from match_players group by player_id) as mp 
+        on (tp.player_id = mp.player_id) 
+        inner join players as p on (tp.player_id = p.player_id);
 
 
 -- select matchID,winnerID from matches where tournament_id = thisTourn; 
