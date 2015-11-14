@@ -145,10 +145,13 @@ def registerPlayer(name):
     c.execute(sql_statement, (name,))
     db.commit()
 
-    print "Created player {0} with ID: {1}".format(name, c.fetchone()[0])
+    new_player_id = c.fetchone()[0]
+    print "Created player {0} with ID: {1}".format(name, new_player_id)
 
     c.close()
     db.close()
+
+    return new_player_id
 
 
 def checkPlayer(player_id, cursor):
@@ -214,10 +217,14 @@ def addTournament():
 
     db.commit()
 
-    print "Created tournament with ID: {0}".format(c.fetchone()[0])
+    new_tournament_id = c.fetchone()[0]
+
+    print "Created tournament with ID: {0}".format(new_tournament_id)
 
     c.close()
     db.close()
+
+    return new_tournament_id
 
 
 def checkTournament(tournament_id, cursor):
@@ -290,22 +297,26 @@ def playerStandings(tournament_id):
     # match_players so we know nmatches played and player score,
     # then to players table so we can get player names.
 
-    # TODO: find a way to calculate score using SQL instead of updating a
-    # score field - use a self-join?
+    # sql_statement = """
+    # select tp.player_id, p.p_name, tp.p_t_score, 
+    #     case when mp.nmatches is null then 0 else mp.nmatches end  
+    # from (tournament_players as tp
+    #     left outer join 
+    #     (select player_id, count(*) as nmatches 
+    #         from match_players group by player_id) as mp 
+    #     on (tp.player_id = mp.player_id)) 
+    #     inner join players as p 
+    #     on (tp.player_id = p.player_id)
+    # where tp.tournament_id = (%s) order by tp.p_t_score desc;"""
+
+    # full_player_info is a view joining tournament_players, match_players, and
+    # players to yield this summary info.
 
     sql_statement = """
-    select tp.player_id, p.p_name, tp.p_t_score, 
-        case when mp.nmatches is null then 0 else mp.nmatches end  
-    from (tournament_players as tp
-        left outer join 
-        (select player_id, count(*) as nmatches 
-            from match_players group by player_id) as mp 
-        on (tp.player_id = mp.player_id)) 
-        inner join players as p 
-        on (tp.player_id = p.player_id)
-    where tp.tournament_id = (%s) order by tp.p_t_score desc;"""
-
-    # note that the match count returns as a long int
+    select player_id, p_name, p_t_score, 
+        case when nmatches is null then 0 else nmatches end
+        from full_player_info
+        where tournament_id = (%s) order by p_t_score desc;"""
 
     c.execute(sql_statement, (tournament_id,))
 
@@ -363,7 +374,8 @@ def reportMatch(tournament_id, winner_id, *args):
                   " returning match_id;", (tournament_id,))
         match_id = int(c.fetchone()[0])
         for player in args:
-            checkPlayerInTournament(player, tournament_id, c)
+            assert checkPlayerInTournament(
+                player, tournament_id, c) == 1, "Player ID {0} not in tournament.".format(player)
             c.execute("insert into match_players (match_id,player_id)"
                       " values (%s, %s);", (match_id, player,))
             c.execute("update tournament_players set p_t_score = p_t_score + 1 "
@@ -396,7 +408,7 @@ def reportMatch(tournament_id, winner_id, *args):
     db.close()
 
 
-def swissPairings():
+def swissPairings(tournament_id):
     """Returns a list of pairs of players for the next round of a match.
 
     Assuming that there are an even number of players registered, each player
@@ -412,5 +424,42 @@ def swissPairings():
         name2: the second player's name
     """
 
-    # get player standings: if nmatches is same for all players, generate a
-    # full round
+    argDict = locals()
+    checkCleanArgs(argDict)
+
+    db = connect()
+    c = db.cursor()
+
+    standings = playerStandings(tournament_id)
+    nMatchesOnly = [x[3] for x in standings]
+
+    isNewRound = True if all(
+        playerMatches == standings[0][3] for playerMatches in nMatchesOnly) else False
+
+    # case: isNewRound
+    # if isNewRound:
+
+    # it is ok if players who have already played one another play each other 
+    # again, even consecutively, because that may be the fastest way to find a 
+    # winner. However, should we check whether they have played each other before,
+    # (is there a match_players record for them with the same match_id?) and if
+    # possible, find another pairing? if we try to keep everything in a single 
+    # query, this could get super complicated...
+
+    sql_statement = """
+    select a.player_id, a.p_name, b.player_id, b.p_name 
+    from (select row_number() over (order by p_t_score desc) as rn, * 
+        from full_player_info) as a, 
+    (select row_number() over (order by p_t_score desc) as rn, * 
+        from full_player_info) as b
+    where a.tournament_id = %s and b.tournament_id = %s and 
+        a.rn % 2 = 1 and b.rn = a.rn + 1;
+    """
+
+    c.execute(sql_statement,(tournament_id,tournament_id,))
+
+    pairings = c.fetchall()
+
+    print(pairings)
+
+    return pairings
