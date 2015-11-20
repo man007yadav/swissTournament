@@ -7,7 +7,7 @@
 -- these lines here.
 --
 -- NOTES:
--- Began with statements: create database tournaments; \c tournaments; \i tournament.sql;
+-- Began with statements: create database tournament; \c tournament; \i tournament.sql;
 
 
 drop table if exists tournaments;
@@ -37,17 +37,22 @@ drop table if exists matches;
 create table matches(
     match_id        serial primary key,
     tournament_id   integer references tournaments(tournament_id),
+                            on update cascade on delete cascade,
     -- winnerID is serial ID of player if there was a winner, 
     -- and 0 if there was a tie; see if there's a constraint to enforce this - can we use null?
     winner_id       integer references players(player_id)
+                    on update cascade on delete cascade
+                    -- deleting winner player deletes the match.
     -- either figure out how to reference tournament_players composite PK, or 
     -- manage this constraint in Python code.
 );
 
 drop table if exists match_players;
 create table match_players(
-    match_id    integer references matches(match_id),
+    match_id    integer references matches(match_id)
+                        on update cascade on delete cascade,
     player_id   integer references players(player_id)
+                        on update cascade on delete cascade
     -- see composite PK/FK comment in matches(winner)
 );
 
@@ -60,12 +65,3 @@ create or replace view full_player_info as
             from match_players group by player_id) as mp 
         on (tp.player_id = mp.player_id) 
         inner join players as p on (tp.player_id = p.player_id);
-
-
--- select matchID,winnerID from matches where tournament_id = thisTourn; 
-    -- for each player find out which matches they participated in and what their score was (cases for playerid=winnerid,
-    -- playerid != winnerid, winnerid=0, return an ordered list of players by score. 
--- view of all matches in a given tournament
-
-
--- nRounds is log base nPlayersPerMatch (2) of nPlayersInTournament
