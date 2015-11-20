@@ -5,8 +5,6 @@
 
 # Extra credits attempted: allow ties; allow multiple tournaments.
 
-# TODO: add README.md for installation instructions. See notes in .sql file.
-
 import psycopg2
 from bleach import clean
 
@@ -237,6 +235,21 @@ def registerPlayerInTournament(player_id, tournament_id):
     db.close()
 
 
+def checkTournamentPlayerCount(tournament_id):
+    """Makes sure a tournament has the correct number of players without byes."""
+    # note that the provided tournament_id is checked to be clean and the
+    # tournament_id is checked to be valid within countPlayersInTournament,
+    # so any function using this one does not need to do those things redundantly.
+
+    playerCount = countPlayersInTournament(tournament_id)
+    morePlayersNeeded = PLAYERS_PER_MATCH - (playerCount % PLAYERS_PER_MATCH)
+    assert morePlayersNeeded == PLAYERS_PER_MATCH, ("Register {0} additional "
+                                                    "players in tournament {1} "
+                                                    "to begin the tournament."
+                                                    ).format(
+        morePlayersNeeded, tournament_id)
+
+
 def deleteMatches():
     """Remove all the match records from the database."""
 
@@ -246,6 +259,7 @@ def deleteMatches():
     sql_statement = "delete from matches;"
     c.execute(sql_statement)
 
+    # Since p_t_score is not calculated, this is necessary.
     sql_statement_2 = "update tournament_players set p_t_score = 0;"
     c.execute(sql_statement_2)
 
@@ -270,10 +284,11 @@ def deleteMatchesInTournament(tournament_id):
     sql_statement = "delete from matches where tournament_id=(%s);"
     c.execute(sql_statement, (tournament_id,))
 
+    # Since p_t_score is not calculated, this is necessary.
     sql_statement_2 = ("update tournament_players set p_t_score = 0 "
                        "where tournament_id = (%s);")
     c.execute(sql_statement_2, (tournament_id,))
-    
+
     db.commit()
     c.close()
     db.close()
@@ -300,24 +315,9 @@ def playerStandings(tournament_id):
     db = connect()
     c = db.cursor()
 
-    # check that tournament exists
-    checkTournament(tournament_id, c)
-
-    # below SQL joins tournament_players to a count aggregation of
-    # match_players so we know nmatches played and player score,
-    # then to players table so we can get player names.
-
-    # sql_statement = """
-    # select tp.player_id, p.p_name, tp.p_t_score, 
-    #     case when mp.nmatches is null then 0 else mp.nmatches end  
-    # from (tournament_players as tp
-    #     left outer join 
-    #     (select player_id, count(*) as nmatches 
-    #         from match_players group by player_id) as mp 
-    #     on (tp.player_id = mp.player_id)) 
-    #     inner join players as p 
-    #     on (tp.player_id = p.player_id)
-    # where tp.tournament_id = (%s) order by tp.p_t_score desc;"""
+    # make sure the number of players in the tournament works without byes,
+    # bonus tournament_id check.
+    checkTournamentPlayerCount(tournament_id)
 
     # full_player_info is a view joining tournament_players, match_players, and
     # players to yield this summary info.
@@ -348,10 +348,9 @@ def reportMatch(tournament_id, winner_id, *args):
             *Note this is ALL the match players, not just losers.*
     """
 
-    # make sure to assert that there are the correct # players in the match
-    # before recording an outcome.
-
-    assert len(args) == PLAYERS_PER_MATCH, "Bad number of players"
+    # check there are the correct # players in the match before recording outcome.
+    # using set() differently could allow for "byes" in future iterations.
+    assert len(set(args)) == PLAYERS_PER_MATCH, "Bad number of players"
 
     # Make sure all data is clean
 
@@ -364,6 +363,10 @@ def reportMatch(tournament_id, winner_id, *args):
     pDict = dict(zip(aKeys, args))
 
     checkCleanArgs(pDict)
+
+    # make sure the number of players in the tournament works without byes,
+    # bonus tournament_id check.
+    checkTournamentPlayerCount(tournament_id)
 
     db = connect()
     c = db.cursor()
@@ -378,6 +381,8 @@ def reportMatch(tournament_id, winner_id, *args):
 
     # create a match with the given data
     # we want to make sure all the provided data is correct, though.
+
+    # case: there is a tie
     if winner_id is 0:
         checkTournament(tournament_id, c)
         c.execute("insert into matches (tournament_id) values (%s)"
@@ -391,7 +396,7 @@ def reportMatch(tournament_id, winner_id, *args):
             c.execute("update tournament_players set p_t_score = p_t_score + 1 "
                       "where tournament_id = %s and player_id = %s;",
                       (tournament_id, player_id,))
-
+    # case: there is a winner
     elif winner_id in args:
         assert checkPlayerInTournament(
             winner_id, tournament_id, c) == 1, "Winner not a tournament player"
@@ -440,21 +445,20 @@ def swissPairings(tournament_id):
     db = connect()
     c = db.cursor()
 
-    standings = playerStandings(tournament_id)
+    standings = playerStandings(tournament_id) # also runs checkTournamentPlayerCount
     nMatchesOnly = [x[3] for x in standings]
 
+    # check if all players have played the same number of matches as the top player.
     isNewRound = True if all(
         playerMatches == standings[0][3] for playerMatches in nMatchesOnly) else False
 
-    # case: isNewRound
-    # if isNewRound:
+    if not isNewRound:
+        print("Warning: using swissPairings before a round is complete can "
+              "result in meaningless pairings.")
 
-    # it is ok if players who have already played one another play each other 
-    # again, even consecutively, because that may be the fastest way to find a 
-    # winner. However, should we check whether they have played each other before,
-    # (is there a match_players record for them with the same match_id?) and if
-    # possible, find another pairing? if we try to keep everything in a single 
-    # query, this could get complicated...
+    # it is ok if players who have already played one another play each other
+    # again, even consecutively, because that may be the fastest way to find a
+    # winner.
 
     sql_statement = """
     select a.player_id, a.p_name, b.player_id, b.p_name 
@@ -467,7 +471,7 @@ def swissPairings(tournament_id):
     """
     # note that using % as modulo operator doesn't work for psycopg2 connection
 
-    c.execute(sql_statement,(tournament_id,tournament_id,))
+    c.execute(sql_statement, (tournament_id, tournament_id,))
 
     pairings = c.fetchall()
 

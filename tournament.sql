@@ -19,9 +19,6 @@ create table players(
     p_name      varchar(30)
 );
 
--- view for all matches a player has participated in (maybe grouped by 
--- tournament) will help determine their record.
-
 drop table if exists tournament_players;
 create table tournament_players(
     player_id       integer references players(player_id) 
@@ -38,13 +35,11 @@ create table matches(
     match_id        serial primary key,
     tournament_id   integer references tournaments(tournament_id),
                             on update cascade on delete cascade,
-    -- winnerID is serial ID of player if there was a winner, 
-    -- and 0 if there was a tie; see if there's a constraint to enforce this - can we use null?
+    -- winnerID is serial ID of player if there was a winner, and 0 if there was a tie.
     winner_id       integer references players(player_id)
                     on update cascade on delete cascade
                     -- deleting winner player deletes the match.
-    -- either figure out how to reference tournament_players composite PK, or 
-    -- manage this constraint in Python code.
+    -- constraint on winner_id values is managed in Python code.
 );
 
 drop table if exists match_players;
@@ -53,10 +48,8 @@ create table match_players(
                         on update cascade on delete cascade,
     player_id   integer references players(player_id)
                         on update cascade on delete cascade
-    -- see composite PK/FK comment in matches(winner)
 );
 
-drop view if exists full_player_info;
 create or replace view full_player_info as
     select tp.player_id, tp.tournament_id, tp.p_t_score, mp.nmatches, p.p_name
     from tournament_players as tp
