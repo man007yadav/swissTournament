@@ -33,11 +33,11 @@ create table tournament_players(
 drop table if exists matches;
 create table matches(
     match_id        serial primary key,
-    tournament_id   integer references tournaments(tournament_id),
+    tournament_id   integer references tournaments(tournament_id)
                             on update cascade on delete cascade,
     -- winnerID is serial ID of player if there was a winner, and 0 if there was a tie.
     winner_id       integer references players(player_id)
-                    on update cascade on delete cascade
+                            on update cascade on delete cascade
                     -- deleting winner player deletes the match.
     -- constraint on winner_id values is managed in Python code.
 );

@@ -157,18 +157,25 @@ def testPairings(testTournament):
 
 
 # New
-def testDeleteTournaments(testTournament):
+db = connect()
+c = db.cursor()
+
+def testCheckTournament(testTournament, c):
+
+    checkTournament(testTournament,c) # Assertion Error if this fails.
+    print "9. Checking for existing tournament works."
+    try:
+        checkTournament(testTournament+1,c) # should fail
+    except AssertionError:
+        print "10. Checking for non-existent tournament yields error."
+
+
+def testDeleteTournaments(testTournament, c):
     deleteTournaments()
     try:
-        checkTournament(testTournament)
+        checkTournament(testTournament, c)
     except AssertionError:
-        print "9. Deleting all tournaments works."
-
-
-# TODO: pick some additional tournament unit tests to add.
-# test add tournament
-# test check tournament
-# test delete specific tournament
+        print "11. Deleting all tournaments works."
 
 
 if __name__ == '__main__':
@@ -181,7 +188,8 @@ if __name__ == '__main__':
     testReportMatches(testTourn)
     testPairings(testTourn)
     # Added tests.
-    testDeleteTournaments(testTourn)
+    testCheckTournament(testTourn, c)
+    testDeleteTournaments(testTourn, c)
     print "Success!  All tests pass!"
 
 

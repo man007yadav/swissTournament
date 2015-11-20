@@ -25,7 +25,7 @@ def connect():
 
 
 def addTournament():
-    """Creates a tournament, prints the ID for use in other functions."""
+    """Creates a tournament, prints/returns the ID for use in other functions."""
     db = connect()
     c = db.cursor()
 
@@ -161,6 +161,9 @@ def registerPlayer(name):
 
     Args:
         name: the player's full name (need not be unique).
+
+    Returns: 
+        new player's ID
     """
 
     argDict = locals()
@@ -301,12 +304,12 @@ def playerStandings(tournament_id):
     tied for first place if there is currently a tie.
 
     Returns:
-      A list of tuples, each of which contains (id, name, tournament score, matches):
-          id: the player's unique id (assigned by the database)
-          name: the player's full name (as registered)
-          tournament_score: the player's score in the tournament by WotC rules: 
-                            (win=3,tie=1,loss=0)
-          matches: the number of matches the player has played
+        A list of tuples, each of which contains (id, name, tournament score, matches):
+            id: the player's unique id (assigned by the database)
+            name: the player's full name (as registered)
+            tournament_score: the player's score in the tournament by WotC rules: 
+                              (win=3,tie=1,loss=0)
+            matches: the number of matches the player has played
     """
 
     argDict = locals()
