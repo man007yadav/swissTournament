@@ -5,6 +5,8 @@
 
 # Extra credits attempted: allow ties; allow multiple tournaments.
 
+# TODO: add README.md for installation instructions. See notes in .sql file.
+
 import psycopg2
 from bleach import clean
 
@@ -24,22 +26,52 @@ def connect():
     return psycopg2.connect("dbname=tournament")
 
 
-def deleteMatches():
-    """Remove all the match records from the database."""
-
+def addTournament():
+    """Creates a tournament, prints the ID for use in other functions."""
     db = connect()
     c = db.cursor()
 
-    sql_statement = "delete from matches;"
+    c.execute(
+        "insert into tournaments (tournament_id) values (default)"
+        " returning tournament_id;")
 
-    c.execute(sql_statement)
+    db.commit()
+
+    new_tournament_id = c.fetchone()[0]
+
+    print "Created tournament with ID: {0}".format(new_tournament_id)
+
+    c.close()
+    db.close()
+
+    return new_tournament_id
+
+
+def checkTournament(tournament_id, cursor):
+    """Checks that a tournament exists. Needs a db cursor."""
+
+    # any function using this one must have checkCleanArgs first.
+
+    cursor.execute("select count(*) from tournaments where tournament_id = (%s);",
+                   (clean(tournament_id),))
+    assert int(cursor.fetchone()[0]) == 1, "Invalid tournament ID"
+
+
+def deleteTournaments():
+    """Deletes all tournaments from tournaments table."""
+    # figure out how "cascade" works - will this delete all
+    # matches/match_players, etc.? it should.
+    db = connect()
+    c = db.cursor()
+
+    c.execute("delete from tournaments;")
     db.commit()
     c.close()
     db.close()
 
 
-def deleteMatchesInTournament(tournament_id):
-    """Remove all the match records in a given tournament from the database."""
+def deleteThisTournament(tournament_id):
+    """Deletes tournament with given id."""
 
     argDict = locals()
     checkCleanArgs(argDict)
@@ -47,12 +79,11 @@ def deleteMatchesInTournament(tournament_id):
     db = connect()
     c = db.cursor()
 
-    # check that tournament exists
     checkTournament(tournament_id, c)
 
-    sql_statement = "delete from matches where tournament_id=(%s);"
+    sql_statement = "delete from tournaments where tournament_id=(%s);"
 
-    c.execute(sql_statement, (clean(tournament_id),))
+    c.execute(sql_statement, (tournament_id,))
     db.commit()
     c.close()
     db.close()
@@ -206,52 +237,26 @@ def registerPlayerInTournament(player_id, tournament_id):
     db.close()
 
 
-def addTournament():
-    """Creates a tournament, prints the ID for use in other functions."""
+def deleteMatches():
+    """Remove all the match records from the database."""
+
     db = connect()
     c = db.cursor()
 
-    c.execute(
-        "insert into tournaments (tournament_id) values (default)"
-        " returning tournament_id;")
+    sql_statement = "delete from matches;"
+    c.execute(sql_statement)
+
+    sql_statement_2 = "update tournament_players set p_t_score = 0;"
+    c.execute(sql_statement_2)
 
     db.commit()
-
-    new_tournament_id = c.fetchone()[0]
-
-    print "Created tournament with ID: {0}".format(new_tournament_id)
 
     c.close()
     db.close()
 
-    return new_tournament_id
 
-
-def checkTournament(tournament_id, cursor):
-    """Checks that a tournament exists. Needs a db cursor."""
-
-    # any function using this one must have checkCleanArgs first.
-
-    cursor.execute("select count(*) from tournaments where tournament_id = (%s);",
-                   (clean(tournament_id),))
-    assert int(cursor.fetchone()[0]) == 1, "Invalid tournament ID"
-
-
-def deleteTournaments():
-    """Deletes all tournaments from tournaments table."""
-    # figure out how "cascade" works - will this delete all
-    # matches/match_players, etc.? it should.
-    db = connect()
-    c = db.cursor()
-
-    c.execute("delete from tournaments;")
-    db.commit()
-    c.close()
-    db.close()
-
-
-def deleteThisTournament(tournament_id):
-    """Deletes tournament with given id."""
+def deleteMatchesInTournament(tournament_id):
+    """Remove all the match records in a given tournament from the database."""
 
     argDict = locals()
     checkCleanArgs(argDict)
@@ -259,11 +264,16 @@ def deleteThisTournament(tournament_id):
     db = connect()
     c = db.cursor()
 
+    # check that tournament exists
     checkTournament(tournament_id, c)
 
-    sql_statement = "delete from tournaments where tournament_id=(%s);"
-
+    sql_statement = "delete from matches where tournament_id=(%s);"
     c.execute(sql_statement, (tournament_id,))
+
+    sql_statement_2 = ("update tournament_players set p_t_score = 0 "
+                       "where tournament_id = (%s);")
+    c.execute(sql_statement_2, (tournament_id,))
+    
     db.commit()
     c.close()
     db.close()
@@ -444,7 +454,7 @@ def swissPairings(tournament_id):
     # winner. However, should we check whether they have played each other before,
     # (is there a match_players record for them with the same match_id?) and if
     # possible, find another pairing? if we try to keep everything in a single 
-    # query, this could get super complicated...
+    # query, this could get complicated...
 
     sql_statement = """
     select a.player_id, a.p_name, b.player_id, b.p_name 
@@ -453,8 +463,9 @@ def swissPairings(tournament_id):
     (select row_number() over (order by p_t_score desc) as rn, * 
         from full_player_info) as b
     where a.tournament_id = %s and b.tournament_id = %s and 
-        a.rn % 2 = 1 and b.rn = a.rn + 1;
+        mod(a.rn,2) = 1 and b.rn = a.rn + 1;
     """
+    # note that using % as modulo operator doesn't work for psycopg2 connection
 
     c.execute(sql_statement,(tournament_id,tournament_id,))
 
