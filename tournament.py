@@ -29,14 +29,12 @@ def addTournament():
     db = connect()
     c = db.cursor()
 
-    c.execute(
-        "insert into tournaments (tournament_id) values (default)"
-        " returning tournament_id;")
-
+    sql_statement = ("insert into tournaments (tournament_id) values (default) "
+                     "returning tournament_id;")        
+    c.execute(sql_statement)
     db.commit()
 
     new_tournament_id = c.fetchone()[0]
-
     print "Created tournament with ID: {0}".format(new_tournament_id)
 
     c.close()
@@ -50,8 +48,8 @@ def checkTournament(tournament_id, cursor):
 
     # any function using this one must have checkCleanArgs first.
 
-    cursor.execute("select count(*) from tournaments where tournament_id = (%s);",
-                   (clean(tournament_id),))
+    sql_statement = "select count(*) from tournaments where tournament_id = (%s);"
+    cursor.execute(sql_statement, clean(tournament_id),))
     assert int(cursor.fetchone()[0]) == 1, "Invalid tournament ID"
 
 
@@ -212,9 +210,10 @@ def checkPlayerInTournament(player_id, tournament_id, cursor):
     checkTournament(tournament_id, cursor)
     checkPlayer(player_id, cursor)
 
-    cursor.execute("select count(*) from tournament_players"
-                   " where tournament_id = %s and player_id = %s;",
-                   (tournament_id, player_id,))
+    sql_statement = ("select count(*) from tournament_players"
+                     " where tournament_id = %s and player_id = %s;")
+
+    cursor.execute(sql_statement, (tournament_id, player_id,))
 
     return cursor.fetchone()[0]
 
