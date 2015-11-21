@@ -20,24 +20,42 @@ def checkCleanArgs(argDict):
 
 
 def connect():
-    """Connect to the PostgreSQL database.  Returns a database connection."""
-    return psycopg2.connect("dbname=tournament")
+    """Connect to the PostgreSQL database.  Returns database connection and cursor."""
+    try: 
+        db = psycopg2.connect("dbname=tournament")
+        cursor = db.cursor()
+        return db, cursor
+    except:
+        print "Database connection failed. Does tournament database exist for this user?"
 
 
-def addTournament():
-    """Creates a tournament, prints/returns the ID for use in other functions."""
-    db = connect()
-    c = db.cursor()
+def addTournament(description):
+    """Creates a tournament.
 
-    sql_statement = ("insert into tournaments (tournament_id) values (default) "
-                     "returning tournament_id;")        
-    c.execute(sql_statement)
+    Args:
+        description: A description of the tournament to help identify it.
+            100 character max length.
+
+    Returns: 
+        new_tournament_id: serial ID of newly created tournament
+    """
+
+    argDict = locals()
+    checkCleanArgs(argDict)
+
+    db, c = connect()
+
+    # don't need to check input description type because SQL will convert it to
+    # varchar upon insertion.
+    sql_statement = ("INSERT INTO tournaments (tournament_id, t_description) "
+                     "VALUES (DEFAULT, %s) "
+                     "RETURNING tournament_id;")        
+    c.execute(sql_statement, (description,))
     db.commit()
 
     new_tournament_id = c.fetchone()[0]
     print "Created tournament with ID: {0}".format(new_tournament_id)
 
-    c.close()
     db.close()
 
     return new_tournament_id
@@ -48,8 +66,8 @@ def checkTournament(tournament_id, cursor):
 
     # any function using this one must have checkCleanArgs first.
 
-    sql_statement = "select count(*) from tournaments where tournament_id = (%s);"
-    cursor.execute(sql_statement, clean(tournament_id),))
+    sql_statement = "SELECT COUNT(*) FROM tournaments WHERE tournament_id = (%s);"
+    cursor.execute(sql_statement, clean(tournament_id),)
     assert int(cursor.fetchone()[0]) == 1, "Invalid tournament ID"
 
 
@@ -57,12 +75,10 @@ def deleteTournaments():
     """Deletes all tournaments from tournaments table."""
     # figure out how "cascade" works - will this delete all
     # matches/match_players, etc.? it should.
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
-    c.execute("delete from tournaments;")
+    c.execute("DELETE FROM tournaments;")
     db.commit()
-    c.close()
     db.close()
 
 
@@ -72,30 +88,26 @@ def deleteThisTournament(tournament_id):
     argDict = locals()
     checkCleanArgs(argDict)
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
     checkTournament(tournament_id, c)
 
-    sql_statement = "delete from tournaments where tournament_id=(%s);"
+    sql_statement = "DELETE FROM tournaments WHERE tournament_id=(%s);"
 
     c.execute(sql_statement, (tournament_id,))
     db.commit()
-    c.close()
     db.close()
 
 
 def deletePlayers():
     """Remove all the player records from the database."""
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
-    sql_statement = "delete from players;"
+    sql_statement = "DELETE FROM players;"
 
     c.execute(sql_statement)
     db.commit()
-    c.close()
     db.close()
 
 
@@ -105,49 +117,55 @@ def deletePlayersInTournament(tournament_id):
     argDict = locals()
     checkCleanArgs(argDict)
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
     # check that tournament exists
     checkTournament(tournament_id, c)
 
-    sql_statement = "delete from tournament_players where tournament_id=(%s);"
+    sql_statement = "DELETE FROM tournament_players WHERE tournament_id=(%s);"
 
     c.execute(sql_statement, (tournament_id,))
     db.commit()
-    c.close()
     db.close()
 
 
 def countPlayers():
-    """Returns the number of players currently registered."""
+    """Returns the number of players currently registered as nPlayers."""
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
-    sql_statement = "select count(*) from players;"
+    sql_statement = "SELECT COUNT(*) FROM players;"
 
     c.execute(sql_statement)
     nPlayers = int(c.fetchone()[0])  # should only be one row and one col in c
+
+    db.close()
     return nPlayers
 
 
 def countPlayersInTournament(tournament_id):
-    """Returns the number of players currently registered in given tournament."""
+    """Returns the number of players currently registered in given tournament.
+
+    Args: 
+        tournament_id: serial id of tournament whose players you are counting
+
+    Returns: 
+        nPlayers: number of players in this tournament
+        """
 
     argDict = locals()
     checkCleanArgs(argDict)
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
-    # check that tournament exists
     checkTournament(tournament_id, c)
 
-    sql_statement = "select count(*) from tournament_players where tournament_id=(%s);"
+    sql_statement = "SELECT COUNT(*) FROM tournament_players WHERE tournament_id=(%s);"
 
     c.execute(sql_statement, (tournament_id,))
     nPlayers = int(c.fetchone()[0])  # should only be one row and one col in c
+
+    db.close()
     return nPlayers
 
 
@@ -161,16 +179,15 @@ def registerPlayer(name):
         name: the player's full name (need not be unique).
 
     Returns: 
-        new player's ID
+        new_player_id: new player's serial ID
     """
 
     argDict = locals()
     checkCleanArgs(argDict)
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
-    sql_statement = "insert into players (p_name) values (%s) returning player_id;"
+    sql_statement = "INSERT INTO players (p_name) VALUES (%s) RETURNING player_id;"
 
     c.execute(sql_statement, (name,))
     db.commit()
@@ -178,29 +195,36 @@ def registerPlayer(name):
     new_player_id = c.fetchone()[0]
     print "Created player {0} with ID: {1}".format(name, new_player_id)
 
-    c.close()
     db.close()
 
     return new_player_id
 
 
 def checkPlayer(player_id, cursor):
-    """Checks if there is a player with the given ID. Needs a db cursor."""
+    """Checks if there is a player with the given ID, AssertionError if not.
+
+    Args:
+        player_id: serial ID of player to check
+        cursor: cursor from connection to tournament database
+    """
 
     # any function using this one must have checkCleanArgs first.
 
-    # argDict = locals()
-    # argDict.pop('cursor', None)
-    # checkCleanArgs(argDict)
-
     cursor.execute(
-        "select count(*) from players where player_id = %s;", (player_id,))
+        "SELECT COUNT(*) FROM players WHERE player_id = %s;", (player_id,))
     assert cursor.fetchone()[0] == 1, "No such player ID registered."
 
 
 def checkPlayerInTournament(player_id, tournament_id, cursor):
-    """Checks if a player is registered in a given tournament. Needs db cursor.
-    Returns number of registered players with this info (should be 1 or 0).
+    """Checks if a player is registered in a given tournament.
+
+    Args:
+        player_id: serial ID of player to check
+        tournament_id: serial ID of tournament the player should be registered in
+        cursor: cursor from connection to tournament database
+
+    Returns: 
+        number of registered players with given player and tournament id (1 or 0)
     """
 
     argDict = locals()
@@ -210,89 +234,95 @@ def checkPlayerInTournament(player_id, tournament_id, cursor):
     checkTournament(tournament_id, cursor)
     checkPlayer(player_id, cursor)
 
-    sql_statement = ("select count(*) from tournament_players"
-                     " where tournament_id = %s and player_id = %s;")
+    sql_statement = ("SELECT COUNT(*) FROM tournament_players"
+                     " WHERE tournament_id = %s AND player_id = %s;")
 
     cursor.execute(sql_statement, (tournament_id, player_id,))
 
+    # return result of count aggregation
     return cursor.fetchone()[0]
 
 
 def registerPlayerInTournament(player_id, tournament_id):
-    """Adds a pre-registered player to a pre-existing tournament."""
-    db = connect()
-    c = db.cursor()
+    """Adds a pre-registered player to a pre-existing tournament.
 
-    # check that player and tournament exist and args are clean,
+    Args: 
+        player_id: serial ID of player to be added
+        tournament_id: serial ID of tournament player is to be added to
+    """
+    db, c = connect()
+
+    # check that player and tournament exist and args are clean (in checkPlayerInTournament),
     # then check that player with this info doesn't already exist.
     assert checkPlayerInTournament(
         player_id, tournament_id, c) == 0, "Player already registered."
 
-    sql_statement = ("insert into tournament_players (player_id, tournament_id)"
-                     " values (%s, %s);")
+    sql_statement = ("INSERT INTO tournament_players (player_id, tournament_id)"
+                     " VALUES (%s, %s);")
 
     c.execute(sql_statement, (player_id, tournament_id,))
     db.commit()
-    c.close()
     db.close()
 
 
 def checkTournamentPlayerCount(tournament_id):
-    """Makes sure a tournament has the correct number of players without byes."""
+    """Makes sure a tournament has the correct number of players without byes.
+
+    Args:
+        tournament_id: serial ID of tournament whose player count you want
+    """
     # note that the provided tournament_id is checked to be clean and the
     # tournament_id is checked to be valid within countPlayersInTournament,
     # so any function using this one does not need to do those things redundantly.
 
     playerCount = countPlayersInTournament(tournament_id)
-    morePlayersNeeded = PLAYERS_PER_MATCH - (playerCount % PLAYERS_PER_MATCH)
-    assert morePlayersNeeded == PLAYERS_PER_MATCH, ("Register {0} additional "
+    nMorePlayersNeeded = PLAYERS_PER_MATCH - (playerCount % PLAYERS_PER_MATCH)
+    assert nMorePlayersNeeded == PLAYERS_PER_MATCH, ("Register {0} additional "
                                                     "players in tournament {1} "
                                                     "to begin the tournament."
                                                     ).format(
-        morePlayersNeeded, tournament_id)
+        nMorePlayersNeeded, tournament_id)
 
 
 def deleteMatches():
     """Remove all the match records from the database."""
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
-    sql_statement = "delete from matches;"
+    sql_statement = "DELETE FROM matches;"
     c.execute(sql_statement)
 
     # Since p_t_score is not calculated, this is necessary.
-    sql_statement_2 = "update tournament_players set p_t_score = 0;"
+    sql_statement_2 = "UPDATE tournament_players SET p_t_score = 0;"
     c.execute(sql_statement_2)
 
     db.commit()
 
-    c.close()
     db.close()
 
 
 def deleteMatchesInTournament(tournament_id):
-    """Remove all the match records in a given tournament from the database."""
+    """Remove all the match records in a given tournament from the database.
+    Args:
+        tournament_id: serial ID of tournament whose matches you want to delete
+    """
 
     argDict = locals()
     checkCleanArgs(argDict)
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
-    # check that tournament exists
     checkTournament(tournament_id, c)
 
-    sql_statement = "delete from matches where tournament_id=(%s);"
+    sql_statement = "DELETE FROM matches WHERE tournament_id=(%s);"
     c.execute(sql_statement, (tournament_id,))
 
     # Since p_t_score is not calculated, this is necessary.
-    sql_statement_2 = ("update tournament_players set p_t_score = 0 "
-                       "where tournament_id = (%s);")
+    sql_statement_2 = ("UPDATE tournament_players SET p_t_score = 0 "
+                       "WHERE tournament_id = (%s);")
     c.execute(sql_statement_2, (tournament_id,))
 
     db.commit()
-    c.close()
     db.close()
 
 
@@ -301,6 +331,9 @@ def playerStandings(tournament_id):
 
     The first entry in the list should be the player in first place, or a player
     tied for first place if there is currently a tie.
+
+    Args:
+        tournament_id: serial ID of tournament whose standings you want
 
     Returns:
         A list of tuples, each of which contains (id, name, tournament score, matches):
@@ -314,27 +347,20 @@ def playerStandings(tournament_id):
     argDict = locals()
     checkCleanArgs(argDict)
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
     # make sure the number of players in the tournament works without byes,
     # bonus tournament_id check.
     checkTournamentPlayerCount(tournament_id)
 
-    # full_player_info is a view joining tournament_players, match_players, and
-    # players to yield this summary info.
+    # standings is a function selecting a parameterized subset of rows/columns
+    # from full_player_info view. Allows all logic to remain in .sql file.
 
-    sql_statement = """
-    select player_id, p_name, p_t_score, 
-        case when nmatches is null then 0 else nmatches end
-        from full_player_info
-        where tournament_id = (%s) order by p_t_score desc;"""
-
+    sql_statement = """SELECT * from standings(%s);"""
     c.execute(sql_statement, (tournament_id,))
 
     standings = c.fetchall()
 
-    c.close()
     db.close()
 
     return standings
@@ -359,7 +385,7 @@ def reportMatch(tournament_id, winner_id, *args):
     argDict = locals()
     checkCleanArgs(argDict)
 
-    # need to separately check player *args
+    # need to separately check player *args, as they come as a [list].
 
     aKeys = range(len(args))
     pDict = dict(zip(aKeys, args))
@@ -370,8 +396,7 @@ def reportMatch(tournament_id, winner_id, *args):
     # bonus tournament_id check.
     checkTournamentPlayerCount(tournament_id)
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
     # check that all players in args are tournament players
 
@@ -387,32 +412,32 @@ def reportMatch(tournament_id, winner_id, *args):
     # case: there is a tie
     if winner_id is 0:
         checkTournament(tournament_id, c)
-        c.execute("insert into matches (tournament_id) values (%s)"
-                  " returning match_id;", (tournament_id,))
+        c.execute("INSERT INTO matches (tournament_id) VALUES (%s)"
+                  " RETURNING match_id;", (tournament_id,))
         match_id = int(c.fetchone()[0])
         for player in args:
             assert checkPlayerInTournament(
                 player, tournament_id, c) == 1, "Player ID {0} not in tournament.".format(player)
-            c.execute("insert into match_players (match_id,player_id)"
-                      " values (%s, %s);", (match_id, player,))
-            c.execute("update tournament_players set p_t_score = p_t_score + 1 "
-                      "where tournament_id = %s and player_id = %s;",
+            c.execute("INSERT INTO match_players (match_id,player_id)"
+                      " VALUES (%s, %s);", (match_id, player,))
+            c.execute("UPDATE tournament_players SET p_t_score = p_t_score + 1 "
+                      "WHERE tournament_id = %s AND player_id = %s;",
                       (tournament_id, player_id,))
     # case: there is a winner
     elif winner_id in args:
         assert checkPlayerInTournament(
             winner_id, tournament_id, c) == 1, "Winner not a tournament player"
-        c.execute("insert into matches (tournament_id, winner_id) values (%s, %s) "
-                  "returning match_id;", (tournament_id, winner_id,))
+        c.execute("INSERT INTO matches (tournament_id, winner_id) VALUES (%s, %s) "
+                  "RETURNING match_id;", (tournament_id, winner_id,))
         match_id = int(c.fetchone()[0])
         for player in args:
             assert checkPlayerInTournament(
                 player, tournament_id, c) == 1, "Player ID {0} not in tournament.".format(player)
-            c.execute("insert into match_players (match_id,player_id)"
-                      " values (%s, %s);", (match_id, player,))
+            c.execute("INSERT INTO match_players (match_id,player_id)"
+                      " VALUES (%s, %s);", (match_id, player,))
             if player is winner_id:
-                c.execute("update tournament_players set p_t_score = p_t_score + 3 "
-                          "where tournament_id = %s and player_id = %s;",
+                c.execute("UPDATE tournament_players SET p_t_score = p_t_score + 3 "
+                          "WHERE tournament_id = %s AND player_id = %s;",
                           (tournament_id, player,))
             else:
                 pass
@@ -421,7 +446,6 @@ def reportMatch(tournament_id, winner_id, *args):
         raise ValueError("Invalid winner ID.")
 
     db.commit()
-    c.close()
     db.close()
 
 
@@ -444,10 +468,10 @@ def swissPairings(tournament_id):
     argDict = locals()
     checkCleanArgs(argDict)
 
-    db = connect()
-    c = db.cursor()
+    db, c = connect()
 
-    standings = playerStandings(tournament_id) # also runs checkTournamentPlayerCount
+    standings = playerStandings(tournament_id)
+    # playerStandings also internally asserts correct number of players.
     nMatchesOnly = [x[3] for x in standings]
 
     # check if all players have played the same number of matches as the top player.
@@ -458,25 +482,13 @@ def swissPairings(tournament_id):
         print("Warning: using swissPairings before a round is complete can "
               "result in meaningless pairings.")
 
-    # it is ok if players who have already played one another play each other
-    # again, even consecutively, because that may be the fastest way to find a
-    # winner.
+    sql_statement = """SELECT * FROM pairings(%s);"""
+    c.execute(sql_statement, (tournament_id,))
 
-    sql_statement = """
-    select a.player_id, a.p_name, b.player_id, b.p_name 
-    from (select row_number() over (order by p_t_score desc) as rn, * 
-        from full_player_info) as a, 
-    (select row_number() over (order by p_t_score desc) as rn, * 
-        from full_player_info) as b
-    where a.tournament_id = %s and b.tournament_id = %s and 
-        mod(a.rn,2) = 1 and b.rn = a.rn + 1;
-    """
-    # note that using % as modulo operator doesn't work for psycopg2 connection
+    roundPairings = c.fetchall()
 
-    c.execute(sql_statement, (tournament_id, tournament_id,))
+    db.close()
 
-    pairings = c.fetchall()
+    print(roundPairings)
 
-    print(pairings)
-
-    return pairings
+    return roundPairings

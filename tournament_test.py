@@ -4,7 +4,7 @@
 
 from tournament import *
 
-testTourn = addTournament()
+testTourn = addTournament("testTourn")
 
 def testDeleteMatches():
     deleteMatches()
@@ -157,8 +157,7 @@ def testPairings(testTournament):
 
 
 # New
-db = connect()
-c = db.cursor()
+db, c = connect()
 
 def testCheckTournament(testTournament, c):
 
