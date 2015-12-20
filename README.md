@@ -1,12 +1,12 @@
-# udacity_swissTournament
+# swissTournament
 
 This project provides a way to keep track of players, matches, and tournaments played in a variation of the [Swiss tournament format](https://en.wikipedia.org/wiki/Swiss-system_tournament). Here, any given match can result in a win, loss, or tie, worth 3, 0, or 1 points for the players, respectively. Since the number of rounds conventionally played in a Swiss tournament to determine the winner is not necessarily the same as the minimum number of rounds to find a "winner", the pairings function does not return information about tournament winners. Players can be tracked across distinct tournaments, all stored in a single Postgres database. Since there are several opportunities for user inputs to make their way directly into SQL statements, all inputs are checked for "cleanliness" before usage.
 
 ### Requirements
 
 Python 2.7:
- -`bleach`
- -`psycopg2`
+ - `bleach`
+ - `psycopg2`
 
 Postgres CLI >= 9.2 (to use parameter names in SQL functions)
 
